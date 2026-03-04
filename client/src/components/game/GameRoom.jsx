@@ -136,25 +136,11 @@ export default function GameRoom({ socket, roomCode, username, role }) {
     // ============================================================
     const setupHost = async () => {
         try {
-            let s;
-
-            // Try screen sharing first (works on desktop)
-            try {
-                setStatus('Prompting for Screen/Camera...');
-                s = await navigator.mediaDevices.getDisplayMedia({
-                    video: { cursor: "always" },
-                    audio: false
-                });
-            } catch (screenErr) {
-                // Screen share failed (probably mobile) → fall back to camera
-                console.log('Screen share not available, trying camera...');
-                setStatus('Opening Camera...');
-                s = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-                    audio: false
-                });
-            }
-
+            setStatus('Starting Screen Share...');
+            const s = await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: false
+            });
             streamRef.current = s;
             setHasStream(true);
             if (localVideoRef.current) localVideoRef.current.srcObject = s;
@@ -170,7 +156,11 @@ export default function GameRoom({ socket, roomCode, username, role }) {
             }
         } catch (err) {
             console.error("Error sharing:", err);
-            setStatus('Share Cancelled or Failed');
+            if (err.name === 'NotAllowedError') {
+                setStatus('Share cancelled. Tap the button to try again.');
+            } else {
+                setStatus('Screen share not supported on this browser. Try Chrome on Android or use a laptop.');
+            }
         }
     };
 
