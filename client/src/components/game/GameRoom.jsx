@@ -136,15 +136,29 @@ export default function GameRoom({ socket, roomCode, username, role }) {
     // ============================================================
     const setupHost = async () => {
         try {
-            setStatus('Prompting for Screen Share...');
-            const s = await navigator.mediaDevices.getDisplayMedia({
-                video: { cursor: "always" },
-                audio: false
-            });
+            let s;
+
+            // Try screen sharing first (works on desktop)
+            try {
+                setStatus('Prompting for Screen/Camera...');
+                s = await navigator.mediaDevices.getDisplayMedia({
+                    video: { cursor: "always" },
+                    audio: false
+                });
+            } catch (screenErr) {
+                // Screen share failed (probably mobile) → fall back to camera
+                console.log('Screen share not available, trying camera...');
+                setStatus('Opening Camera...');
+                s = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: false
+                });
+            }
+
             streamRef.current = s;
-            setHasStream(true); // Trigger re-render to hide button
+            setHasStream(true);
             if (localVideoRef.current) localVideoRef.current.srcObject = s;
-            setStatus('Screen Shared! Waiting for players...');
+            setStatus('Sharing! Waiting for players...');
 
             // Process any queued stream requests that arrived before screen was ready
             if (pendingRequests.current.length > 0) {
@@ -156,7 +170,7 @@ export default function GameRoom({ socket, roomCode, username, role }) {
             }
         } catch (err) {
             console.error("Error sharing:", err);
-            setStatus('Screen Share Cancelled or Failed');
+            setStatus('Share Cancelled or Failed');
         }
     };
 
@@ -391,7 +405,7 @@ export default function GameRoom({ socket, roomCode, username, role }) {
 
                 {!hasStream && role === 'host' && (
                     <button onClick={setupHost} className="absolute bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 px-6 py-3 sm:px-8 sm:py-4 rounded-xl text-white font-bold z-20 shadow-xl shadow-indigo-900/40 transition-all duration-300 hover:-translate-y-0.5 text-sm sm:text-base">
-                        🖥️ Start Screen Share
+                        📸 Start Sharing
                     </button>
                 )}
 
