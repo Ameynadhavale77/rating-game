@@ -135,6 +135,22 @@ export default function GameRoom({ socket, roomCode, username, role }) {
     // ============================================================
     // HOST FUNCTIONS
     // ============================================================
+    // Common function to start streaming after getting media
+    const startStream = async (s) => {
+        streamRef.current = s;
+        setHasStream(true);
+        if (localVideoRef.current) localVideoRef.current.srcObject = s;
+        setStatus('Sharing! Waiting for players...');
+
+        if (pendingRequests.current.length > 0) {
+            console.log(`Processing ${pendingRequests.current.length} queued stream requests`);
+            for (const req of pendingRequests.current) {
+                await sendStreamToPlayer(req.requesterId);
+            }
+            pendingRequests.current = [];
+        }
+    };
+
     const setupHost = async () => {
         try {
             setStatus('Starting Screen Share...');
@@ -142,26 +158,24 @@ export default function GameRoom({ socket, roomCode, username, role }) {
                 video: true,
                 audio: false
             });
-            streamRef.current = s;
-            setHasStream(true);
-            if (localVideoRef.current) localVideoRef.current.srcObject = s;
-            setStatus('Sharing! Waiting for players...');
-
-            // Process any queued stream requests that arrived before screen was ready
-            if (pendingRequests.current.length > 0) {
-                console.log(`Processing ${pendingRequests.current.length} queued stream requests`);
-                for (const req of pendingRequests.current) {
-                    await sendStreamToPlayer(req.requesterId);
-                }
-                pendingRequests.current = [];
-            }
+            await startStream(s);
         } catch (err) {
-            console.error("Error sharing:", err);
-            if (err.name === 'NotAllowedError') {
-                setStatus('Share cancelled. Tap the button to try again.');
-            } else {
-                setStatus('Screen share not supported on this browser. Try Chrome on Android or use a laptop.');
-            }
+            console.error('Screen share error:', err);
+            setStatus('Screen share failed. Try "Use Camera" instead.');
+        }
+    };
+
+    const setupCamera = async () => {
+        try {
+            setStatus('Opening Camera...');
+            const s = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: false
+            });
+            await startStream(s);
+        } catch (err) {
+            console.error('Camera error:', err);
+            setStatus('Camera access denied. Please allow camera and try again.');
         }
     };
 
@@ -408,9 +422,15 @@ export default function GameRoom({ socket, roomCode, username, role }) {
                 )}
 
                 {!hasStream && role === 'host' && (
-                    <button onClick={setupHost} className="absolute bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 px-6 py-3 sm:px-8 sm:py-4 rounded-xl text-white font-bold z-20 shadow-xl shadow-indigo-900/40 transition-all duration-300 hover:-translate-y-0.5 text-sm sm:text-base">
-                        📸 Start Sharing
-                    </button>
+                    <div className="absolute flex flex-col items-center gap-3 z-20">
+                        <button onClick={setupHost} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 px-6 py-3 rounded-xl text-white font-bold shadow-xl shadow-indigo-900/40 transition-all duration-300 text-sm">
+                            🖥️ Screen Share
+                        </button>
+                        <button onClick={setupCamera} className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-6 py-3 rounded-xl text-white font-bold shadow-xl shadow-emerald-900/40 transition-all duration-300 text-sm">
+                            � Use Camera
+                        </button>
+                        <p className="text-gray-500 text-[10px]">Mobile? Use Camera</p>
+                    </div>
                 )}
 
                 {role !== 'host' && !playerConnected && !isOverlay && (
