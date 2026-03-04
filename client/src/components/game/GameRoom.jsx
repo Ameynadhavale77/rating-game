@@ -15,7 +15,8 @@ let rtcConfig = {
 // Fetch TURN servers from our server
 async function fetchTurnServers() {
     try {
-        const resp = await fetch('/api/turn-credentials');
+        const baseUrl = import.meta.env.DEV ? 'http://localhost:3001' : '';
+        const resp = await fetch(`${baseUrl}/api/turn-credentials`);
         const data = await resp.json();
         if (data.iceServers) {
             rtcConfig = { iceServers: data.iceServers };
@@ -180,10 +181,23 @@ export default function GameRoom({ socket, roomCode, username, role }) {
     const sendStreamToPlayer = async (requesterId) => {
         await createPeerConnection(requesterId);
 
-        // Add stream tracks from REF (not state!)
+        // Add stream tracks
         if (streamRef.current) {
             streamRef.current.getTracks().forEach(track => {
-                peers.current[requesterId].addTrack(track, streamRef.current);
+                const sender = peers.current[requesterId].addTrack(track, streamRef.current);
+
+                // Cap video bandwidth for smooth streaming on slow networks
+                if (track.kind === 'video') {
+                    try {
+                        const params = sender.getParameters();
+                        if (!params.encodings) params.encodings = [{}];
+                        params.encodings[0].maxBitrate = 1500000; // 1.5 Mbps
+                        params.encodings[0].maxFramerate = 24;
+                        sender.setParameters(params);
+                    } catch (e) {
+                        console.warn('Could not set bitrate:', e);
+                    }
+                }
             });
         }
 
