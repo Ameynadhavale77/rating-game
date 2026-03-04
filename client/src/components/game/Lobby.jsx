@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
 export default function Lobby({ socket, onJoin }) {
     const [username, setUsername] = useState('');
     const [roomCode, setRoomCode] = useState('');
@@ -8,6 +10,7 @@ export default function Lobby({ socket, onJoin }) {
 
     const createRoom = () => {
         if (!username.trim()) return setError('Please enter a username');
+        if (isMobile) return setError('⚠️ Host must be on a laptop/PC — screen sharing is not supported on mobile browsers. Join a game instead!');
         setLoading(true);
         socket.emit('create-room', { username: username.trim() }, (response) => {
             setLoading(false);
