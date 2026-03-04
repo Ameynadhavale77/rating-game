@@ -288,33 +288,33 @@ export default function GameRoom({ socket, roomCode, username, role }) {
     const isOverlay = roundState === 'rating' || roundState === 'results' || roundState === 'gameover';
 
     return (
-        <div className="flex flex-col h-screen bg-[#0a0a0f] text-white p-3">
+        <div className="flex flex-col h-[100dvh] bg-[#0a0a0f] text-white p-2 sm:p-3">
             {/* HEADER */}
-            <div className="glass rounded-xl px-5 py-3 mb-3 flex justify-between items-center animate-slide-up">
-                <div className="flex gap-3 items-center">
-                    <h1 className="text-lg font-bold font-display gradient-text">{roomCode}</h1>
-                    <span className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${role === 'host'
+            <div className="glass rounded-xl px-3 py-2 sm:px-5 sm:py-3 mb-2 sm:mb-3 flex flex-wrap gap-2 justify-between items-center animate-slide-up">
+                <div className="flex gap-2 sm:gap-3 items-center flex-wrap">
+                    <h1 className="text-base sm:text-lg font-bold font-display gradient-text">{roomCode}</h1>
+                    <span className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${role === 'host'
                         ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20'
                         : 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'
                         }`}>
                         {role === 'host' ? '👑 HOST' : '🎮 PLAYER'}
                     </span>
-                    <span className="px-2.5 py-1 rounded-lg text-[10px] bg-white/5 text-gray-400 border border-white/5 font-mono">
+                    <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] bg-white/5 text-gray-400 border border-white/5 font-mono">
                         Round {roundNumber}/3
                     </span>
                     {role !== 'host' && (
                         <button
                             onClick={handleMicClick}
                             disabled={micEnabled}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${micEnabled
+                            className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all duration-300 ${micEnabled
                                 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
                                 : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-white'}`}
                         >
-                            {micEnabled ? '🎤 Mic On' : '🎤 Enable Mic'}
+                            {micEnabled ? '🎤 On' : '🎤 Mic'}
                         </button>
                     )}
                 </div>
-                <div className="text-xs text-gray-500">
+                <div className="text-[10px] sm:text-xs text-gray-500 hidden sm:block">
                     <span className="font-medium text-gray-300">{username}</span>
                     <span className="mx-2 text-gray-700">·</span>
                     <span>{status}</span>
@@ -322,7 +322,7 @@ export default function GameRoom({ socket, roomCode, username, role }) {
             </div>
 
             {/* MAIN VIDEO AREA */}
-            <div className="flex-grow flex items-center justify-center bg-gray-950 rounded-xl overflow-hidden relative border border-white/5">
+            <div className="flex-grow min-h-0 flex items-center justify-center bg-gray-950 rounded-xl overflow-hidden relative border border-white/5">
                 {roundState === 'rating' && <BlackScreen />}
                 {roundState === 'results' && (
                     <Scoreboard
@@ -363,12 +363,12 @@ export default function GameRoom({ socket, roomCode, username, role }) {
             </div>
 
             {/* CONTROLS */}
-            <div className="mt-3 glass rounded-xl p-4 flex items-center justify-center min-h-[80px]">
+            <div className="mt-2 sm:mt-3 glass rounded-xl p-2 sm:p-4 flex items-center justify-center min-h-[60px] sm:min-h-[80px]">
                 {roundState === 'sharing' ? (
                     role === 'host' ? (
                         <button
                             onClick={toggleRoundState}
-                            className="px-10 py-4 rounded-xl font-bold text-lg transition-all duration-300 transform hover:scale-105 hover:-translate-y-0.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-xl shadow-red-900/40"
+                            className="px-6 py-3 sm:px-10 sm:py-4 rounded-xl font-bold text-sm sm:text-lg transition-all duration-300 transform hover:scale-105 hover:-translate-y-0.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-xl shadow-red-900/40"
                         >
                             ⏸ STOP & RATE
                         </button>
