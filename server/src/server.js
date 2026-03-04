@@ -16,7 +16,7 @@ app.get('/api/turn-credentials', async (req, res) => {
         // If Metered API key is set, fetch real TURN servers
         try {
             const response = await fetch(
-                `https://outlier-game.metered.live/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`
+                `https://metered_api_key.metered.live/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`
             );
             const servers = await response.json();
             return res.json({
