@@ -4,27 +4,27 @@ import RatingControls from './RatingControls';
 import Scoreboard from './Scoreboard';
 import GameOver from './GameOver';
 
-const rtcConfig = {
+// ICE servers will be fetched at runtime
+let rtcConfig = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        {
-            urls: 'turn:openrelay.metered.ca:80',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-        {
-            urls: 'turn:openrelay.metered.ca:443',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-        {
-            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        }
+        { urls: 'stun:stun1.l.google.com:19302' }
     ]
 };
+
+// Fetch TURN servers from our server
+async function fetchTurnServers() {
+    try {
+        const resp = await fetch('/api/turn-credentials');
+        const data = await resp.json();
+        if (data.iceServers) {
+            rtcConfig = { iceServers: data.iceServers };
+            console.log('TURN servers loaded:', data.iceServers.length);
+        }
+    } catch (e) {
+        console.warn('Failed to fetch TURN servers, using STUN only:', e);
+    }
+}
 
 export default function GameRoom({ socket, roomCode, username, role }) {
     const [status, setStatus] = useState('Initializing...');
@@ -34,12 +34,14 @@ export default function GameRoom({ socket, roomCode, username, role }) {
     const [gameStats, setGameStats] = useState(null);
     const [roundNumber, setRoundNumber] = useState(1);
     const [hasStream, setHasStream] = useState(false);
+    const [playerConnected, setPlayerConnected] = useState(false);
 
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
-    const streamRef = useRef(null); // USE REF to avoid stale closure!
+    const streamRef = useRef(null);
     const peers = useRef({});
-    const pendingRequests = useRef([]); // Queue requests that arrive before stream is ready
+    const pendingRequests = useRef([]);
+    const retryInterval = useRef(null);
 
     // ============================================================
     // SETUP: Socket listeners
@@ -77,16 +79,28 @@ export default function GameRoom({ socket, roomCode, username, role }) {
             }
         });
 
+        // Fetch TURN servers on mount
+        fetchTurnServers();
+
         if (role === 'host') {
             socket.on('request-stream', handleStreamRequest);
             socket.on('answer', handleReceiveAnswer);
             // Don't auto-call setupHost() — let the user click the button
         } else {
             socket.on('offer', handleReceiveOffer);
-            // Player requests stream after delay to give host time to share
-            setTimeout(() => {
+            // Auto-retry: request stream every 5 seconds until connected
+            const requestStream = () => {
                 socket.emit('request-stream', { roomCode, requesterId: socket.id });
-            }, 3000);
+            };
+            setTimeout(requestStream, 2000); // First request after 2s
+            retryInterval.current = setInterval(() => {
+                if (!remoteVideoRef.current?.srcObject) {
+                    console.log('No stream yet, retrying...');
+                    requestStream();
+                } else {
+                    clearInterval(retryInterval.current);
+                }
+            }, 5000);
         }
 
         return () => {
@@ -111,6 +125,9 @@ export default function GameRoom({ socket, roomCode, username, role }) {
 
             // Remove hidden audio elements
             document.querySelectorAll('audio[data-peer-audio]').forEach(el => el.remove());
+
+            // Clear retry interval
+            if (retryInterval.current) clearInterval(retryInterval.current);
         };
     }, []);
 
@@ -236,7 +253,6 @@ export default function GameRoom({ socket, roomCode, username, role }) {
         pc.ontrack = (event) => {
             console.log("Received Track!", event.track.kind);
             if (role === 'host') {
-                // Host receives audio from players
                 const audioId = `audio-${remoteId}`;
                 let audio = document.getElementById(audioId);
                 if (!audio) {
@@ -248,8 +264,26 @@ export default function GameRoom({ socket, roomCode, username, role }) {
                 }
                 audio.srcObject = event.streams[0];
             } else if (remoteVideoRef.current) {
-                // Player receives video from host
                 remoteVideoRef.current.srcObject = event.streams[0];
+                setPlayerConnected(true);
+                setStatus('Connected! Watching stream');
+                if (retryInterval.current) clearInterval(retryInterval.current);
+            }
+        };
+
+        // Monitor ICE connection state
+        pc.oniceconnectionstatechange = () => {
+            console.log('ICE state:', pc.iceConnectionState);
+            if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+                if (role !== 'host') {
+                    setPlayerConnected(true);
+                    setStatus('Connected!');
+                }
+            } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+                if (role !== 'host') {
+                    setPlayerConnected(false);
+                    setStatus('Connection lost. Tap Reconnect.');
+                }
             }
         };
 
@@ -356,9 +390,29 @@ export default function GameRoom({ socket, roomCode, username, role }) {
                 )}
 
                 {!hasStream && role === 'host' && (
-                    <button onClick={setupHost} className="absolute bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 px-8 py-4 rounded-xl text-white font-bold z-20 shadow-xl shadow-indigo-900/40 transition-all duration-300 hover:-translate-y-0.5">
+                    <button onClick={setupHost} className="absolute bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 px-6 py-3 sm:px-8 sm:py-4 rounded-xl text-white font-bold z-20 shadow-xl shadow-indigo-900/40 transition-all duration-300 hover:-translate-y-0.5 text-sm sm:text-base">
                         🖥️ Start Screen Share
                     </button>
+                )}
+
+                {role !== 'host' && !playerConnected && !isOverlay && (
+                    <div className="absolute flex flex-col items-center gap-3 z-20">
+                        <div className="flex gap-1.5">
+                            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
+                            <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
+                            <div className="w-2 h-2 bg-pink-500 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
+                        </div>
+                        <p className="text-gray-400 text-sm">Waiting for host's screen...</p>
+                        <button
+                            onClick={() => {
+                                socket.emit('request-stream', { roomCode, requesterId: socket.id });
+                                setStatus('Reconnecting...');
+                            }}
+                            className="px-5 py-2 rounded-lg text-xs font-bold bg-white/10 text-white border border-white/20 hover:bg-white/20 transition-all"
+                        >
+                            🔄 Reconnect
+                        </button>
+                    </div>
                 )}
             </div>
 

@@ -8,6 +8,46 @@ const { calculateOutlier } = require('./utils/gameLogic');
 const app = express();
 app.use(cors());
 
+// TURN credentials endpoint for WebRTC cross-network connections
+app.get('/api/turn-credentials', async (req, res) => {
+    const METERED_API_KEY = process.env.METERED_API_KEY;
+
+    if (METERED_API_KEY) {
+        // If Metered API key is set, fetch real TURN servers
+        try {
+            const response = await fetch(
+                `https://outlier-game.metered.live/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`
+            );
+            const servers = await response.json();
+            return res.json({
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    ...servers
+                ]
+            });
+        } catch (e) {
+            console.error('Metered API error:', e);
+        }
+    }
+
+    // Fallback: multiple STUN servers + free TURN relay
+    res.json({
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
+            {
+                urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'],
+                username: 'peerjs',
+                credential: 'peerjsp'
+            }
+        ]
+    });
+});
+
 // Serve built React client
 app.use(express.static(path.join(__dirname, '../public')));
 
