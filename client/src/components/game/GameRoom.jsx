@@ -151,17 +151,35 @@ export default function GameRoom({ socket, roomCode, username, role }) {
         }
     };
 
+    // Detect if screen sharing API is available
+    const canScreenShare = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
     const setupHost = async () => {
+        if (!canScreenShare) {
+            setStatus('Screen share not supported on this device. Use Camera or Share Media instead.');
+            return;
+        }
         try {
             setStatus('Starting Screen Share...');
             const s = await navigator.mediaDevices.getDisplayMedia({
-                video: true,
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    frameRate: { ideal: 15, max: 30 }
+                },
                 audio: false
             });
             await startStream(s);
         } catch (err) {
             console.error('Screen share error:', err);
-            setStatus('Screen share failed. Try "Use Camera" instead.');
+            if (err.name === 'NotAllowedError') {
+                setStatus('Permission denied. Please allow screen sharing and try again.');
+            } else if (err.name === 'NotSupportedError' || err.name === 'TypeError') {
+                setStatus('Screen sharing not supported on this browser. Use Camera or Share Media.');
+            } else {
+                setStatus('Screen share failed. Try "Use Camera" or "Share Media" instead.');
+            }
         }
     };
 
@@ -177,6 +195,43 @@ export default function GameRoom({ socket, roomCode, username, role }) {
             console.error('Camera error:', err);
             setStatus('Camera access denied. Please allow camera and try again.');
         }
+    };
+
+    // Share a video/image file from phone gallery — works as fallback on all phones
+    const setupMediaFile = async () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'video/*';
+        input.capture = ''; // Allow picking from gallery
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                setStatus('Loading media...');
+                const url = URL.createObjectURL(file);
+                const video = document.createElement('video');
+                video.src = url;
+                video.loop = true;
+                video.muted = true;
+                video.playsInline = true;
+                
+                await new Promise((resolve, reject) => {
+                    video.onloadedmetadata = resolve;
+                    video.onerror = reject;
+                });
+                await video.play();
+
+                // Capture video element as a stream
+                const s = video.captureStream ? video.captureStream() : video.mozCaptureStream();
+                // Store reference to clean up later
+                streamRef.videoElement = video;
+                await startStream(s);
+            } catch (err) {
+                console.error('Media file error:', err);
+                setStatus('Failed to load media. Try a different file.');
+            }
+        };
+        input.click();
     };
 
     const handleStreamRequest = async ({ requesterId }) => {
@@ -423,13 +478,25 @@ export default function GameRoom({ socket, roomCode, username, role }) {
 
                 {!hasStream && role === 'host' && (
                     <div className="absolute flex flex-col items-center gap-3 z-20">
-                        <button onClick={setupHost} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 px-6 py-3 rounded-xl text-white font-bold shadow-xl shadow-indigo-900/40 transition-all duration-300 text-sm">
-                            🖥️ Screen Share
+                        {canScreenShare && (
+                            <button onClick={setupHost} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 px-6 py-3 rounded-xl text-white font-bold shadow-xl shadow-indigo-900/40 transition-all duration-300 text-sm w-48">
+                                🖥️ Screen Share
+                            </button>
+                        )}
+                        <button onClick={setupCamera} className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-6 py-3 rounded-xl text-white font-bold shadow-xl shadow-emerald-900/40 transition-all duration-300 text-sm w-48">
+                            📷 Use Camera
                         </button>
-                        <button onClick={setupCamera} className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-6 py-3 rounded-xl text-white font-bold shadow-xl shadow-emerald-900/40 transition-all duration-300 text-sm">
-                            � Use Camera
+                        <button onClick={setupMediaFile} className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 px-6 py-3 rounded-xl text-white font-bold shadow-xl shadow-amber-900/40 transition-all duration-300 text-sm w-48">
+                            🎬 Share Video
                         </button>
-                        <p className="text-gray-500 text-[10px]">Mobile? Use Camera</p>
+                        {isMobile && !canScreenShare && (
+                            <p className="text-amber-400/70 text-[10px] text-center max-w-[200px]">
+                                Screen sharing not available on this browser. Use Camera or Share a Video from gallery.
+                            </p>
+                        )}
+                        {isMobile && canScreenShare && (
+                            <p className="text-gray-500 text-[10px]">Tap Screen Share to share an app</p>
+                        )}
                     </div>
                 )}
 
