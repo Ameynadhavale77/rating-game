@@ -5,9 +5,9 @@ import WaitingRoom from './components/game/WaitingRoom';
 import GameRoom from './components/game/GameRoom';
 
 // In production, connect to same origin. In dev, connect to localhost:3001
-const SOCKET_URL = import.meta.env.DEV
+const SOCKET_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV
     ? `${window.location.protocol}//${window.location.hostname}:3001`
-    : window.location.origin;
+    : window.location.origin);
 const socket = io(SOCKET_URL);
 
 function App() {

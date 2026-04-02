@@ -15,7 +15,7 @@ let rtcConfig = {
 // Fetch TURN servers from our server
 async function fetchTurnServers() {
     try {
-        const baseUrl = import.meta.env.DEV ? 'http://localhost:3001' : '';
+        const baseUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
         const resp = await fetch(`${baseUrl}/api/turn-credentials`);
         const data = await resp.json();
         if (data.iceServers) {
