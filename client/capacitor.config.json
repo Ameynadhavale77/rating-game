@@ -1,0 +1,8 @@
+{
+    "appId": "com.ratinggame.app",
+    "appName": "Rating Game",
+    "webDir": "../server/public",
+    "android": {
+        "allowMixedContent": true
+    }
+}
